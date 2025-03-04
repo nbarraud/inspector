@@ -4,3 +4,11 @@ server/build
 client/dist
 client/tsconfig.app.tsbuildinfo
 client/tsconfig.node.tsbuildinfo
+
+# Local development/editor configuration files
+.cursor/
+.cursorignore
+.windsurfrules
+dprint.jsonc
+inspector.code-workspace
+mcp_config.json
