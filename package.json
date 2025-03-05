@@ -8,24 +8,29 @@
   "bugs": "https://github.com/modelcontextprotocol/inspector/issues",
   "type": "module",
   "bin": {
-    "mcp-inspector": "./bin/cli.js"
+    "mcp-inspector": "./bin/cli.js",
+    "mcp-inspector-cli": "./cli/bin/cli.js"
   },
   "files": [
     "bin",
     "client/bin",
     "client/dist",
-    "server/build"
+    "server/build",
+    "cli/bin",
+    "cli/build"
   ],
   "workspaces": [
     "client",
-    "server"
+    "server",
+    "cli"
   ],
   "scripts": {
     "dev": "concurrently \"cd client && npm run dev\" \"cd server && npm run dev\"",
     "dev:windows": "concurrently \"cd client && npm run dev\" \"cd server && npm run dev:windows",
     "build-server": "cd server && npm run build",
     "build-client": "cd client && npm run build",
-    "build": "npm run build-server && npm run build-client",
+    "build-cli": "cd cli && npm run build",
+    "build": "npm run build-server && npm run build-client && npm run build-cli",
     "start-server": "cd server && npm run start",
     "start-client": "cd client && npm run preview",
     "start": "node ./bin/cli.js",
@@ -36,6 +41,8 @@
   "dependencies": {
     "@modelcontextprotocol/inspector-client": "0.4.1",
     "@modelcontextprotocol/inspector-server": "0.4.1",
+    "@modelcontextprotocol/inspector-cli": "0.4.1",
+    "commander": "^13.1.0",
     "concurrently": "^9.0.1",
     "shell-quote": "^1.8.2",
     "spawn-rx": "^5.1.2",

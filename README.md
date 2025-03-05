@@ -67,6 +67,52 @@ The configuration file should follow this format:
 
 An example config file is provided in `config-example.json`.
 
+### CLI Mode
+
+The inspector also supports a command-line interface (CLI) mode that allows you to make a single tool call and receive the results directly in the console. This is useful for integrating MCP tool calls into scripts, coding agents, and automation tools.
+
+To use CLI mode, add the `--cli` flag followed by the tool name, and use `--tool-arg` to specify tool arguments:
+
+```bash
+# Basic tool call with arguments
+npx @modelcontextprotocol/inspector --cli calculate_sum --tool-arg a=5 --tool-arg b=10 node my-mcp-server.js
+
+# With environment variables
+npx @modelcontextprotocol/inspector --cli fetch_data --tool-arg endpoint=/users -e API_KEY=secret node my-mcp-server.js
+
+# Using -- to separate inspector flags from server command with similar flag names
+npx @modelcontextprotocol/inspector --cli validate_input --tool-arg input=test -- node my-mcp-server.js --input verbose
+```
+
+CLI mode also works with the configuration file approach:
+
+```bash
+# Tool call with config file
+npx @modelcontextprotocol/inspector --cli generate_report --tool-arg format=pdf --config config.json --server dev
+
+# Complex tool arguments with config
+npx @modelcontextprotocol/inspector --cli transform_data --tool-arg schema='{"type":"object"}' --config config.json --server prod
+```
+
+In CLI mode, the inspector:
+- Skips starting the web UI client
+- Makes a single tool call based on command-line arguments
+- Outputs the result to stdout in JSON format
+
+#### Using the CLI Client Directly
+
+You can also use the CLI client directly, which provides the same functionality as the CLI mode but with a slightly different command syntax:
+
+```bash
+# Basic tool call with arguments
+npx @modelcontextprotocol/inspector-cli calculate_sum --tool-arg a=5 --tool-arg b=10 node my-mcp-server.js
+
+# With environment variables
+npx @modelcontextprotocol/inspector-cli fetch_data --tool-arg endpoint=/users -e API_KEY=secret node my-mcp-server.js
+```
+
+For more information on using the CLI client directly, see the [CLI Client README](cli/README.md).
+
 ### Port Configuration
 
 The inspector runs both a client UI (default port 5173) and an MCP proxy server (default port 3000). Open the client UI in your browser to use the inspector. You can customize the ports if needed:
