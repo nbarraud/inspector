@@ -14,14 +14,6 @@
     "dev": "tsc --watch",
     "start": "node build/index.js"
   },
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "^0.4.1",
-    "shell-quote": "^1.8.2",
-    "spawn-rx": "^5.1.2"
-  },
-  "devDependencies": {
-    "@types/node": "^22.7.5",
-    "@types/shell-quote": "^1.7.5",
-    "typescript": "^5.4.2"
-  }
+  "dependencies": {},
+  "devDependencies": {}
 } 

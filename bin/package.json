@@ -1,0 +1,28 @@
+{
+    "name": "@modelcontextprotocol/inspector-bin",
+    "version": "0.4.1",
+    "description": "CLI entry point for the Model Context Protocol inspector",
+    "license": "MIT",
+    "author": "Anthropic, PBC (https://anthropic.com)",
+    "homepage": "https://modelcontextprotocol.io",
+    "bugs": "https://github.com/modelcontextprotocol/inspector/issues",
+    "type": "module",
+
+    "bin": {
+        "mcp-inspector": "./cli.js"
+    },
+
+    "files": [
+        "build",
+        "cli.js"
+    ],
+
+    "scripts": {
+        "build": "tsc",
+        "postbuild": "chmod +x build/index.js && cp build/index.js cli.js"
+    },
+
+    "dependencies": {},
+
+    "devDependencies": {}
+}

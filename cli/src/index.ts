@@ -2,99 +2,64 @@
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { getDefaultEnvironment, StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import fs from "node:fs";
-import path from "node:path";
-import { parse as shellParseArgs } from "shell-quote";
+import { Command } from "commander";
 import { findActualExecutable } from "spawn-rx";
 
 const defaultEnvironment = {
     ...getDefaultEnvironment(),
-    ...(process.env.MCP_ENV_VARS ? JSON.parse(process.env.MCP_ENV_VARS) : {})
+    ...(process.env.CLI_ENV_VARS ? JSON.parse(process.env.CLI_ENV_VARS) : {})
 };
 
-/**
- * Executes a tool call using the MCP protocol in CLI mode.
- *
- * @param toolName - The name of the tool to call
- * @param toolArgs - The arguments to pass to the tool
- * @param envCommand - The command to run the MCP server
- * @param envArgs - The arguments to pass to the MCP server command
- * @param envVars - Environment variables to pass to the MCP server
- * @returns The result of the tool call
- */
+// cli.js node build/index.js arg1 arg2 --tool-name generate_report --tool-arg format=pdf --env KEY1=VALUE1 --env KEY2=VALUE2
 async function executeCliToolCall(
-    toolName: string,
-    toolArgs: Record<string, any>,
-    envCommand: string | null,
-    envArgs: string,
-    envVars: Record<string, string>
+    mcpServerCommand: string,
+    mcpServerArgs: string[],
+    envVars: Record<string, string>,
+    cliToolName: string,
+    cliToolArgs: Record<string, string>
 )
 {
-    console.log(`Executing tool call: ${toolName}`);
-    console.log(`Tool arguments: ${JSON.stringify(toolArgs, null, 2)}`);
+    console.log(`Executing tool call: ${cliToolName}`);
+    console.log(`Tool arguments: ${JSON.stringify(cliToolArgs, null, 2)}`);
 
     let transport: StdioClientTransport | null = null;
     let client: Client | null = null;
 
     try
     {
-        // Create a transport to the MCP server
-        if (envCommand)
-        {
-            const command = envCommand;
-            const origArgs = shellParseArgs(envArgs) as string[];
-            const env = { ...process.env, ...defaultEnvironment, ...envVars };
+        const env = { ...process.env, ...defaultEnvironment, ...envVars };
+        const { cmd, args } = findActualExecutable(mcpServerCommand, mcpServerArgs);
 
-            const { cmd, args } = findActualExecutable(command, origArgs);
-
-            console.log(`Stdio transport: command=${cmd}, args=${args.join(" ")}`);
-
-            transport = new StdioClientTransport({
-                command: cmd,
-                args,
-                env,
-                stderr: "pipe"
-            });
-
-            // Create an MCP client
-            client = new Client(
-                {
-                    name: "mcp-inspector-cli",
-                    version: "1.0.0"
-                },
-                {
-                    capabilities: {
-                        tools: {}
-                    }
-                }
-            );
-
-            // Connect the client to the transport
-            // Note: client.connect() will call transport.start() internally
-            await client.connect(transport);
-            console.log("Connected to MCP server via stdio transport");
-        }
-        else
-        {
-            console.error("No MCP server command specified");
-            process.exit(1);
-        }
-
-        // Call the tool using the client
-        console.log(`Calling tool: ${toolName}`);
-        const result = await client.callTool({
-            name: toolName,
-            arguments: toolArgs
+        transport = new StdioClientTransport({
+            command: cmd,
+            args,
+            env,
+            stderr: "pipe"
         });
 
-        // Output the result as JSON
+        client = new Client(
+            {
+                name: "mcp-inspector-cli",
+                version: "1.0.0"
+            },
+            {
+                capabilities: {
+                    tools: {}
+                }
+            }
+        );
+
+        await client.connect(transport);
+
+        const result = await client.callTool({
+            name: cliToolName,
+            arguments: cliToolArgs
+        });
+
         console.log("Tool call result:");
         console.log(JSON.stringify(result, null, 2));
 
-        // Close the transport
         await transport.close();
-
-        return result;
     }
     catch (error)
     {
@@ -117,60 +82,111 @@ async function executeCliToolCall(
     }
 }
 
-/**
- * Get configuration from environment variables
- * This function extracts all the parsed arguments from environment variables
- * set by the parent process (bin/cli.js)
- */
-function getConfigFromEnvironment() {
-    // Get tool name
-    const toolName = process.env.MCP_TOOL_NAME;
-    if (!toolName) {
-        console.error("Error: MCP_TOOL_NAME environment variable is required");
+function parseKeyValuePair(
+    value: string,
+    previous: Record<string, string> = {}
+): Record<string, string>
+{
+    const [key, val] = value.split("=");
+
+    if (key && val)
+    {
+        return { ...previous, [key]: val };
+    }
+
+    return previous;
+}
+
+type Args = {
+    mcpServerCommand: string;
+    mcpServerArgs: string[];
+    envVars: Record<string, string>;
+    cliToolName: string;
+    cliToolArgs: Record<string, string>;
+};
+
+function parseArgs(args: string[]): Args
+{
+    // TEMPORARY DEBUG LOG: Remove before production
+    console.log("\n🔍 CLI Tool: Parsing arguments:", args.join(" "));
+
+    const result: Args = {
+        mcpServerCommand: "",
+        mcpServerArgs: [] as string[],
+        envVars: {} as Record<string, string>,
+        cliToolName: "",
+        cliToolArgs: {} as Record<string, string>
+    };
+
+    const program = new Command();
+
+    program
+        .allowUnknownOption()
+        .allowExcessArguments()
+        .option("--env <env>", "Set environment variables in key=value format", (value, previous) => parseKeyValuePair(value, previous as Record<string, string>))
+        .option("--tool-name <name>", "Tool name to execute")
+        .option("--tool-arg <arg>", "Tool argument in key=value format", (value, previous) => parseKeyValuePair(value, previous as Record<string, string>));
+
+    program.parse(args);
+
+    const opts = program.opts();
+    result.envVars = opts.env || {};
+    result.cliToolName = opts.toolName || "";
+    result.cliToolArgs = opts.toolArg || {};
+
+    const remainingArgs = program.args;
+
+    if (remainingArgs.length > 0)
+    {
+        result.mcpServerCommand = remainingArgs[0];
+        result.mcpServerArgs = remainingArgs.slice(1);
+    }
+
+    if (!result.cliToolName)
+    {
+        console.error("Error: Tool name (--tool-name) is required");
         process.exit(1);
     }
-    
-    // Get tool arguments
-    const toolArgs = process.env.MCP_TOOL_ARGS 
-        ? JSON.parse(process.env.MCP_TOOL_ARGS) 
-        : {};
-    
-    // Get command and arguments
-    const command = process.env.MCP_COMMAND || null;
-    const commandArgs = process.env.MCP_COMMAND_ARGS || "";
-    
-    // Get environment variables
-    const envVars = process.env.MCP_ENV_VARS 
-        ? JSON.parse(process.env.MCP_ENV_VARS) 
-        : {};
-    
-    // Get config path and server name if provided
-    const configPath = process.env.MCP_CONFIG_PATH || null;
-    const serverName = process.env.MCP_SERVER_NAME || null;
-    
-    // If config path and server name are provided, load the config file
-    if (configPath && serverName) {
-        console.log(`Using server configuration '${serverName}' from ${configPath}`);
+
+    if (Object.keys(result.cliToolArgs).length > 0 && !result.cliToolName)
+    {
+        console.error("Error: Tool arguments (--tool-arg) can only be used with --tool-name flag");
+        process.exit(1);
     }
-    
-    return {
-        toolName,
-        toolArgs,
-        command,
-        commandArgs,
-        envVars
-    };
+
+    if (!result.mcpServerCommand)
+    {
+        console.error("Error: MCP server command is required as the first argument");
+        process.exit(1);
+    }
+
+    // TEMPORARY DEBUG LOG: Remove before production
+    console.log(
+        "\n📋 Parsed configuration:",
+        JSON.stringify(
+            {
+                mcpServerCommand: result.mcpServerCommand,
+                mcpServerArgs: result.mcpServerArgs,
+                envVars: result.envVars,
+                cliToolName: result.cliToolName,
+                cliToolArgs: result.cliToolArgs
+            },
+            null,
+            2
+        )
+    );
+
+    return result;
 }
 
 async function main()
 {
     try
     {
-        // Get configuration from environment variables
-        const { toolName, toolArgs, command, commandArgs, envVars } = getConfigFromEnvironment();
-        
-        // Execute the tool call
-        await executeCliToolCall(toolName, toolArgs, command, commandArgs, envVars);
+        const config = parseArgs(process.argv.slice(2));
+
+        await executeCliToolCall(config.mcpServerCommand, config.mcpServerArgs, config.envVars, config.cliToolName, config.cliToolArgs);
+
         process.exit(0);
     }
     catch (error)
@@ -180,7 +196,7 @@ async function main()
     }
 }
 
-main().catch((error) =>
+main().catch(error =>
 {
     console.error("Unhandled error:", error);
     process.exit(1);
